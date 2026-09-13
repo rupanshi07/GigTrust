@@ -23,6 +23,8 @@ RISK_TIERS = [
     (25, "MEDIUM"),
     (0, "LOW"),
 ]
+RAPID_BIDDING_COUNT = 5            # more than this many bids by one freelancer
+RAPID_BIDDING_WINDOW_MINUTES = 60  # within this time window = spam-bidding pattern
 
 
 def _tier_for_score(score: int) -> str:
@@ -171,6 +173,132 @@ def score_contract(contract_id: int) -> dict:
         )
     except Exception:
         # Fraud scoring should not fail just because logging failed.
+        pass
+
+    return result
+
+
+def score_bid_for_acceptance(bid_id: int) -> dict:
+    """Runs BEFORE a bid is accepted and before any contract/escrow exists —
+    this is preventive scoring, not an after-the-fact audit. A CRITICAL score
+    here should block acceptance outright."""
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT
+                b.bid_id,
+                b.gig_id,
+                b.freelancer_id,
+                b.bid_amount,
+                g.budget,
+                u.created_at AS freelancer_created_at
+            FROM Bids b
+            JOIN Gigs g ON g.gig_id = b.gig_id
+            JOIN Users u ON u.user_id = b.freelancer_id
+            WHERE b.bid_id = ?
+            """,
+            (bid_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Bid not found.")
+
+        columns = [column[0] for column in cursor.description]
+        context = dict(zip(columns, row))
+
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM Bids
+            WHERE freelancer_id = ?
+              AND created_at >= DATEADD(MINUTE, -?, SYSUTCDATETIME())
+            """,
+            (context["freelancer_id"], RAPID_BIDDING_WINDOW_MINUTES),
+        )
+        recent_bid_count = cursor.fetchone()[0]
+    finally:
+        cursor.close()
+        conn.close()
+
+    score = 0
+    reasons = []
+
+    budget = float(context["budget"])
+    bid_amount = float(context["bid_amount"])
+    bid_ratio = bid_amount / budget if budget > 0 else 1.0
+
+    if bid_ratio < LOWBALL_BID_RATIO:
+        score += 30
+        reasons.append(
+            f"Bid amount (₹{bid_amount:,.2f}) is only {bid_ratio * 100:.0f}% "
+            f"of the gig's budget (₹{budget:,.2f}), below the "
+            f"{LOWBALL_BID_RATIO * 100:.0f}% threshold."
+        )
+
+    if bid_ratio > OVERBID_RATIO:
+        score += 15
+        reasons.append(
+            f"Bid amount (₹{bid_amount:,.2f}) is {bid_ratio * 100:.0f}% of "
+            f"the gig's budget (₹{budget:,.2f}), above the "
+            f"{OVERBID_RATIO * 100:.0f}% threshold."
+        )
+
+    freelancer_created_at = context["freelancer_created_at"]
+    if freelancer_created_at:
+        account_age_hours = (
+            datetime.now(timezone.utc).replace(tzinfo=None) - freelancer_created_at
+        ).total_seconds() / 3600
+        if account_age_hours < NEW_ACCOUNT_HOURS:
+            score += 20
+            reasons.append(
+                f"Freelancer account is only {account_age_hours:.1f} hours "
+                f"old, under the {NEW_ACCOUNT_HOURS}-hour threshold."
+            )
+
+    if recent_bid_count > RAPID_BIDDING_COUNT:
+        score += 20
+        reasons.append(
+            f"Freelancer has placed {recent_bid_count} bids in the last "
+            f"{RAPID_BIDDING_WINDOW_MINUTES} minutes, exceeding the "
+            f"{RAPID_BIDDING_COUNT}-bid threshold — a pattern consistent "
+            f"with spam bidding rather than genuine, considered proposals."
+        )
+
+    if bid_amount >= LARGE_TRANSACTION_AMOUNT:
+        score += 10
+        reasons.append(
+            f"Bid amount (₹{bid_amount:,.2f}) meets or exceeds the "
+            f"₹{LARGE_TRANSACTION_AMOUNT:,.2f} large-transaction review "
+            f"threshold."
+        )
+
+    if not reasons:
+        reasons.append("No fraud indicators were triggered by the current rule set.")
+
+    tier = _tier_for_score(score)
+
+    result = {
+        "bid_id": bid_id,
+        "gig_id": context["gig_id"],
+        "freelancer_id": context["freelancer_id"],
+        "bid_amount": bid_amount,
+        "budget": budget,
+        "risk_score": score,
+        "risk_tier": tier,
+        "reasons": reasons,
+    }
+
+    try:
+        log_activity(
+            event_type="FRAUD_SCORE_PRE_ACCEPTANCE",
+            user_id=context["freelancer_id"],
+            transaction_id=None,
+            amount=bid_amount,
+            details=result,
+        )
+    except Exception:
         pass
 
     return result

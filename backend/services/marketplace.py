@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from backend.database import get_db_connection
+from backend.services import fraud_scoring
 
 
 def _row_to_dict(cursor, row):
@@ -138,7 +139,7 @@ def list_bids_for_gig(gig_id: int, requesting_client_sql_id: int):
 
 
 # ---------------------------------------------------------
-# ACCEPTING A BID -> CREATES CONTRACT + ESCROW
+# ACCEPTING A BID -> RUNS FRAUD CHECK -> CREATES CONTRACT + ESCROW
 # ---------------------------------------------------------
 
 def accept_bid(bid_id: int, requesting_client_sql_id: int):
@@ -165,6 +166,17 @@ def accept_bid(bid_id: int, requesting_client_sql_id: int):
             raise HTTPException(status_code=403, detail="Only the gig's owner can accept a bid.")
         if gig_status != "OPEN":
             raise HTTPException(status_code=400, detail="This gig is no longer open.")
+
+        # Preventive fraud check — runs BEFORE any contract or escrow exists.
+        fraud_result = fraud_scoring.score_bid_for_acceptance(bid_id)
+        if fraud_result["risk_tier"] == "CRITICAL":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "This bid was blocked due to a critical fraud risk score.",
+                    "fraud_score": fraud_result,
+                },
+            )
 
         cursor.execute("UPDATE Bids SET status = 'ACCEPTED' WHERE bid_id = ?", (bid_id,))
         cursor.execute(
@@ -202,6 +214,7 @@ def accept_bid(bid_id: int, requesting_client_sql_id: int):
             "freelancer_id": freelancer_id,
             "agreed_amount": float(bid_amount),
             "status": "ACTIVE",
+            "fraud_score": fraud_result,
         }
 
     except HTTPException:
