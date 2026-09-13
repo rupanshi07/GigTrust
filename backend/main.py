@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
+from backend.services import fraud_scoring
 from backend.database import get_db_connection
 from backend.auth_dependency import get_current_user
 from backend.services import marketplace
@@ -231,6 +231,16 @@ def approve_contract_completion(contract_id: int, current_user: dict = Depends(g
         requesting_client_sql_id=int(current_user["sub"]),
     )
 
+
+@app.get("/fraud/score/contract/{contract_id}")
+def get_contract_fraud_score(contract_id: int, current_user: dict = Depends(get_current_user)):
+    result = fraud_scoring.score_contract(contract_id)
+    # Only the contract's own client/freelancer, or an admin, may view its score.
+    role = current_user["role"].upper()
+    user_sql_id = int(current_user["sub"])
+    if role != "ADMIN" and user_sql_id not in (result["client_id"], result["freelancer_id"]):
+        raise HTTPException(status_code=403, detail="You do not have access to this contract's fraud score.")
+    return result
 
 # ---------------------------------------------------------
 # DATABASE HEALTH
