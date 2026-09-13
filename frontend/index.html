@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GigTrust | Login</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="login-page">
+  <main class="login-wrap">
+    <section class="login-brand">
+      <div class="logo">G</div>
+      <h1>GigTrust</h1>
+      <p>Secure freelance work powered by a cloud-native, multi-region backend.</p>
+
+      <div class="backend-box">
+        <span class="dot" id="backendDot"></span>
+        <div>
+          <strong>Backend status</strong>
+          <p id="backendStatus">Checking backend...</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="login-card">
+      <p class="eyebrow">WELCOME TO GIGTRUST</p>
+      <h2 id="formTitle">User Login</h2>
+      <p class="muted" id="formSubtitle">Sign in or create a client account.</p>
+
+      <div class="role-tabs">
+        <button class="role-tab active" data-role="user">User</button>
+        <button class="role-tab" data-role="freelancer">Freelancer</button>
+        <button class="role-tab" data-role="admin">Admin</button>
+      </div>
+
+      <div class="mode-tabs" id="modeTabs">
+        <button class="mode-tab active" data-mode="login">Login</button>
+        <button class="mode-tab" data-mode="register">Create Account</button>
+      </div>
+
+      <form id="authForm">
+        <div id="nameGroup" class="hidden">
+          <label for="name">Full Name</label>
+          <input id="name" type="text" placeholder="Enter your name" />
+        </div>
+
+        <label for="email">Email</label>
+        <input id="email" type="email" placeholder="you@example.com" required />
+
+        <label for="password">Password</label>
+        <input id="password" type="password" placeholder="Minimum 6 characters" required />
+
+        <button id="submitButton" type="submit">Login</button>
+        <p id="authMessage" class="form-message"></p>
+      </form>
+
+      <div id="adminNote" class="demo-note hidden">
+        <strong>Admin account</strong>
+        <span>Admin registration is disabled.</span>
+        <span>Use the credentials configured in the backend environment.</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>

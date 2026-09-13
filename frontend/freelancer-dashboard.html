@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GigTrust | Freelancer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dashboard-page">
+  <aside class="sidebar">
+    <div class="side-logo"><div class="logo small">G</div><span>GigTrust</span></div>
+    <div class="role-pill">Freelancer</div>
+    <nav><a class="active" href="#">Dashboard</a><a href="#" onclick="return false;">Find Gigs</a><a href="#" onclick="return false;">My Bids</a><a href="#" onclick="return false;">Earnings</a></nav>
+    <button id="logoutBtn" class="secondary-btn">Logout</button>
+  </aside>
+
+  <main class="dashboard-content">
+    <header class="dash-header">
+      <div>
+        <p class="eyebrow">FREELANCER DASHBOARD</p>
+        <h1>Welcome, <span id="welcomeName">GigTrust User</span></h1>
+        <p class="muted">Track bids, active work and earnings.</p>
+      </div>
+      <div class="avatar">FR</div>
+    </header>
+
+    <section class="stats-grid"><article class="stat-card"><span>Active Bids</span><strong>7</strong><small>Demo data</small></article><article class="stat-card"><span>Contracts</span><strong>4</strong><small>Demo data</small></article><article class="stat-card"><span>Pending</span><strong>₹18.5K</strong><small>Demo data</small></article><article class="stat-card"><span>Completed</span><strong>12</strong><small>Demo data</small></article></section>
+
+    <section class="content-grid">
+      <article class="panel">
+        <div class="panel-title">
+          <h2>Live Backend Connection</h2>
+          <button id="refreshHealth">Refresh</button>
+        </div>
+        <div class="health-row"><div><span class="status-dot" id="sqlDot"></span><strong>Azure SQL</strong></div><span id="sqlStatus">Checking...</span></div>
+        <div class="health-row"><div><span class="status-dot" id="mongoDot"></span><strong>MongoDB</strong></div><span id="mongoStatus">Checking...</span></div>
+        <div class="health-row"><div><span class="status-dot" id="cassandraDot"></span><strong>Cassandra</strong></div><span id="cassandraStatus">Checking...</span></div>
+        <p class="api-url" id="apiUrl"></p>
+      </article>
+
+      <article class="panel">
+        <h2>Review Prototype</h2>
+        <p class="muted">This role-based dashboard is intentionally simple for the current review. Marketplace features can be added for the final review.</p>
+      </article>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="dashboard-common.js"></script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GigTrust | Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dashboard-page">
+  <aside class="sidebar">
+    <div class="side-logo">
+      <div class="logo small">G</div>
+      <span>GigTrust</span>
+    </div>
+
+    <nav>
+      <a href="#" class="active">Dashboard</a>
+      <a href="#" onclick="return false;">Browse Gigs</a>
+      <a href="#" onclick="return false;">My Bids</a>
+      <a href="#" onclick="return false;">Contracts</a>
+      <a href="#" onclick="return false;">Escrow</a>
+    </nav>
+
+    <button id="logoutBtn" class="secondary-btn">Logout</button>
+  </aside>
+
+  <main class="dashboard-content">
+    <header class="dash-header">
+      <div>
+        <p class="eyebrow">GIGTRUST DASHBOARD</p>
+        <h1>Welcome, Demo User</h1>
+        <p class="muted">Frontend connected to the GigTrust FastAPI backend.</p>
+      </div>
+      <div class="avatar">DU</div>
+    </header>
+
+    <section class="stats-grid">
+      <article class="stat-card">
+        <span>Active Gigs</span>
+        <strong>4</strong>
+        <small>Demo data</small>
+      </article>
+      <article class="stat-card">
+        <span>Pending Bids</span>
+        <strong>7</strong>
+        <small>Demo data</small>
+      </article>
+      <article class="stat-card">
+        <span>Escrow Balance</span>
+        <strong>₹18,500</strong>
+        <small>Demo data</small>
+      </article>
+      <article class="stat-card">
+        <span>Completed</span>
+        <strong>12</strong>
+        <small>Demo data</small>
+      </article>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel">
+        <div class="panel-title">
+          <h2>Live Backend Connection</h2>
+          <button id="refreshHealth">Refresh</button>
+        </div>
+
+        <div class="health-row">
+          <div>
+            <span class="status-dot" id="sqlDot"></span>
+            <strong>Azure SQL</strong>
+          </div>
+          <span id="sqlStatus">Checking...</span>
+        </div>
+
+        <div class="health-row">
+          <div>
+            <span class="status-dot" id="mongoDot"></span>
+            <strong>MongoDB</strong>
+          </div>
+          <span id="mongoStatus">Checking...</span>
+        </div>
+
+        <div class="health-row">
+          <div>
+            <span class="status-dot" id="cassandraDot"></span>
+            <strong>Cassandra</strong>
+          </div>
+          <span id="cassandraStatus">Checking...</span>
+        </div>
+
+        <p class="api-url" id="apiUrl"></p>
+      </article>
+
+      <article class="panel">
+        <h2>Recent Activity</h2>
+        <div class="activity">
+          <div>
+            <strong>Bid submitted</strong>
+            <p>Website redesign project</p>
+          </div>
+          <span>10:25 AM</span>
+        </div>
+        <div class="activity">
+          <div>
+            <strong>Escrow funded</strong>
+            <p>AI chatbot integration</p>
+          </div>
+          <span>09:40 AM</span>
+        </div>
+        <div class="activity">
+          <div>
+            <strong>Contract completed</strong>
+            <p>Data dashboard</p>
+          </div>
+          <span>Yesterday</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Current Review Scope</h2>
+      <p class="muted">
+        Login and dashboard are implemented for this review. Full gig creation, bidding,
+        contracts and escrow UI will be completed for the final review.
+      </p>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
