@@ -6,6 +6,8 @@ if (localStorage.getItem("gigtrust_logged_in") !== "true") {
 
 const userName = localStorage.getItem("gigtrust_name") || "GigTrust User";
 const role = localStorage.getItem("gigtrust_role") || "user";
+const token = localStorage.getItem("gigtrust_token");
+const sqlUserId = localStorage.getItem("gigtrust_sql_user_id");
 
 const welcomeName = document.getElementById("welcomeName");
 if (welcomeName) {
@@ -21,6 +23,34 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
   localStorage.clear();
   window.location.href = "index.html";
 });
+
+async function authFetch(path, options = {}) {
+  const headers = {
+    ...(options.headers || {}),
+    Authorization: `Bearer ${token}`,
+  };
+  const response = await fetch(`${API}${path}`, { ...options, headers });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message =
+      (data.detail && (data.detail.message || data.detail)) ||
+      "Request failed.";
+    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+  }
+
+  return data;
+}
+
+function formatCurrency(amount) {
+  return "₹" + Number(amount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
 
 async function check(path, statusId, dotId) {
   const status = document.getElementById(statusId);

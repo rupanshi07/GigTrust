@@ -396,3 +396,87 @@ def approve_and_release(contract_id: int, requesting_client_sql_id: int):
     finally:
         cursor.close()
         conn.close()
+
+# ---------------------------------------------------------
+# "MINE" QUERIES (for dashboards)
+# ---------------------------------------------------------
+
+def list_my_gigs(client_sql_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT gig_id, client_id, title, description, budget, status, created_at "
+            "FROM Gigs WHERE client_id = ? ORDER BY created_at DESC",
+            (client_sql_id,),
+        )
+        rows = cursor.fetchall()
+        return [_row_to_dict(cursor, row) for row in rows]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def list_my_bids(freelancer_sql_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT b.bid_id, b.gig_id, g.title AS gig_title, g.budget,
+                   b.bid_amount, b.proposal, b.status, b.created_at
+            FROM Bids b
+            JOIN Gigs g ON g.gig_id = b.gig_id
+            WHERE b.freelancer_id = ?
+            ORDER BY b.created_at DESC
+            """,
+            (freelancer_sql_id,),
+        )
+        rows = cursor.fetchall()
+        return [_row_to_dict(cursor, row) for row in rows]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def list_my_contracts(user_sql_id: int, role: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        if role == "CLIENT":
+            cursor.execute(
+                """
+                SELECT c.contract_id, c.gig_id, g.title AS gig_title,
+                       c.freelancer_id, uf.full_name AS freelancer_name,
+                       c.agreed_amount, c.status AS contract_status,
+                       e.escrow_id, e.status AS escrow_status
+                FROM Contracts c
+                JOIN Gigs g ON g.gig_id = c.gig_id
+                JOIN Users uf ON uf.user_id = c.freelancer_id
+                JOIN Escrows e ON e.contract_id = c.contract_id
+                WHERE c.client_id = ?
+                ORDER BY c.created_at DESC
+                """,
+                (user_sql_id,),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT c.contract_id, c.gig_id, g.title AS gig_title,
+                       c.client_id, uc.full_name AS client_name,
+                       c.agreed_amount, c.status AS contract_status,
+                       e.escrow_id, e.status AS escrow_status
+                FROM Contracts c
+                JOIN Gigs g ON g.gig_id = c.gig_id
+                JOIN Users uc ON uc.user_id = c.client_id
+                JOIN Escrows e ON e.contract_id = c.contract_id
+                WHERE c.freelancer_id = ?
+                ORDER BY c.created_at DESC
+                """,
+                (user_sql_id,),
+            )
+        rows = cursor.fetchall()
+        return [_row_to_dict(cursor, row) for row in rows]
+    finally:
+        cursor.close()
+        conn.close()

@@ -145,6 +145,9 @@ def get_my_profile(current_user: dict = Depends(get_current_user)):
 
 # ---------------------------------------------------------
 # MARKETPLACE: GIGS
+# NOTE: static paths like /gigs/mine MUST be registered before
+# parameterized paths like /gigs/{gig_id}, or FastAPI/Starlette will
+# try to match "mine" as a gig_id and fail with a 422 parsing error.
 # ---------------------------------------------------------
 
 @app.post("/gigs")
@@ -161,6 +164,12 @@ def post_gig(request: CreateGigRequest, current_user: dict = Depends(get_current
 @app.get("/gigs")
 def get_open_gigs():
     return marketplace.list_open_gigs()
+
+
+@app.get("/gigs/mine")
+def get_my_gigs(current_user: dict = Depends(get_current_user)):
+    require_role(current_user, "CLIENT")
+    return marketplace.list_my_gigs(int(current_user["sub"]))
 
 
 @app.get("/gigs/{gig_id}")
@@ -190,6 +199,20 @@ def get_bids(gig_id: int, current_user: dict = Depends(get_current_user)):
         gig_id=gig_id,
         requesting_client_sql_id=int(current_user["sub"]),
     )
+
+
+@app.get("/bids/mine")
+def get_my_bids(current_user: dict = Depends(get_current_user)):
+    require_role(current_user, "FREELANCER")
+    return marketplace.list_my_bids(int(current_user["sub"]))
+
+
+@app.get("/contracts/mine")
+def get_my_contracts(current_user: dict = Depends(get_current_user)):
+    role = current_user["role"].upper()
+    if role not in ("CLIENT", "FREELANCER"):
+        raise HTTPException(status_code=403, detail="Only clients and freelancers have contracts.")
+    return marketplace.list_my_contracts(int(current_user["sub"]), role)
 
 
 @app.post("/bids/{bid_id}/accept")
@@ -241,6 +264,7 @@ def get_contract_fraud_score(contract_id: int, current_user: dict = Depends(get_
     if role != "ADMIN" and user_sql_id not in (result["client_id"], result["freelancer_id"]):
         raise HTTPException(status_code=403, detail="You do not have access to this contract's fraud score.")
     return result
+
 
 # ---------------------------------------------------------
 # DATABASE HEALTH

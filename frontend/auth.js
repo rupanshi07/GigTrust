@@ -149,10 +149,12 @@ document.getElementById("authForm").addEventListener("submit", async (event) => 
       throw new Error(data.message || "Login failed.");
     }
 
-    localStorage.setItem("gigtrust_logged_in", "true");
+        localStorage.setItem("gigtrust_logged_in", "true");
     localStorage.setItem("gigtrust_role", data.user.role);
     localStorage.setItem("gigtrust_name", data.user.name);
     localStorage.setItem("gigtrust_email", data.user.email);
+    localStorage.setItem("gigtrust_token", data.token);
+    localStorage.setItem("gigtrust_sql_user_id", data.user.sql_user_id || "");
 
     if (data.user.role === "admin") {
       window.location.href = "admin-dashboard.html";
