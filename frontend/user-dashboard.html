@@ -10,7 +10,12 @@
   <aside class="sidebar">
     <div class="side-logo"><div class="logo small">G</div><span>GigTrust</span></div>
     <div class="role-pill">User</div>
-    <nav><a class="active" href="#">Dashboard</a><a href="#" onclick="return false;">Browse Gigs</a><a href="#" onclick="return false;">Contracts</a><a href="#" onclick="return false;">Escrow</a></nav>
+    <nav>
+      <a class="active" href="#">Dashboard</a>
+      <a href="#postGigSection">Post a Gig</a>
+      <a href="#myGigsSection">My Gigs</a>
+      <a href="#myContractsSection">Contracts &amp; Escrow</a>
+    </nav>
     <button id="logoutBtn" class="secondary-btn">Logout</button>
   </aside>
 
@@ -24,7 +29,12 @@
       <div class="avatar">US</div>
     </header>
 
-    <section class="stats-grid"><article class="stat-card"><span>Posted Gigs</span><strong>3</strong><small>Demo data</small></article><article class="stat-card"><span>Active Contracts</span><strong>2</strong><small>Demo data</small></article><article class="stat-card"><span>Escrow</span><strong>₹24K</strong><small>Demo data</small></article><article class="stat-card"><span>Completed</span><strong>8</strong><small>Demo data</small></article></section>
+    <section class="stats-grid">
+      <article class="stat-card"><span>Posted Gigs</span><strong id="statPostedGigs">—</strong><small id="statPostedGigsLabel">Loading...</small></article>
+      <article class="stat-card"><span>Active Contracts</span><strong id="statActiveContracts">—</strong><small id="statActiveContractsLabel">Loading...</small></article>
+      <article class="stat-card"><span>Escrow Held</span><strong id="statEscrow">—</strong><small id="statEscrowLabel">Loading...</small></article>
+      <article class="stat-card"><span>Completed</span><strong id="statCompleted">—</strong><small id="statCompletedLabel">Loading...</small></article>
+    </section>
 
     <section class="content-grid">
       <article class="panel">
@@ -38,7 +48,7 @@
         <p class="api-url" id="apiUrl"></p>
       </article>
 
-            <article class="panel">
+      <article class="panel" id="postGigSection">
         <h2>Post a New Gig</h2>
         <form id="postGigForm" class="inline-form">
           <input id="gigTitle" type="text" placeholder="Gig title" required />
@@ -50,19 +60,48 @@
       </article>
     </section>
 
-    <section>
+    <section id="myGigsSection">
       <h2 class="section-title">My Gigs</h2>
       <div id="myGigsList" class="item-list"></div>
     </section>
 
-    <section>
+    <section id="myContractsSection">
       <h2 class="section-title">My Contracts</h2>
       <div id="myContractsList" class="item-list"></div>
     </section>
   </main>
 
-    <script src="config.js"></script>
+  <script src="config.js"></script>
   <script src="dashboard-common.js"></script>
   <script src="user-dashboard.js"></script>
+  <script>
+    // Load real stats after dashboard-common.js and user-dashboard.js have run
+    async function loadStats() {
+      try {
+        const gigs = await authFetch("/gigs/mine");
+        const contracts = await authFetch("/contracts/mine");
+
+        const total = gigs.length;
+        const active = contracts.filter(c => c.contract_status === "ACTIVE" || c.contract_status === "WORK_SUBMITTED").length;
+        const completed = contracts.filter(c => c.contract_status === "COMPLETED").length;
+        const escrowHeld = contracts
+          .filter(c => c.escrow_status === "HELD")
+          .reduce((sum, c) => sum + Number(c.agreed_amount), 0);
+
+        document.getElementById("statPostedGigs").textContent = total;
+        document.getElementById("statPostedGigsLabel").textContent = "Your gigs";
+        document.getElementById("statActiveContracts").textContent = active;
+        document.getElementById("statActiveContractsLabel").textContent = "In progress";
+        document.getElementById("statEscrow").textContent = escrowHeld > 0 ? formatCurrency(escrowHeld) : "₹0";
+        document.getElementById("statEscrowLabel").textContent = "Currently held";
+        document.getElementById("statCompleted").textContent = completed;
+        document.getElementById("statCompletedLabel").textContent = "Contracts done";
+      } catch (e) {
+        ["statPostedGigsLabel","statActiveContractsLabel","statEscrowLabel","statCompletedLabel"]
+          .forEach(id => { document.getElementById(id).textContent = "Unavailable"; });
+      }
+    }
+    loadStats();
+  </script>
 </body>
 </html>

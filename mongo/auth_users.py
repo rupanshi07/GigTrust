@@ -13,14 +13,6 @@ from backend.database import get_db_connection
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DATABASE = os.getenv("MONGO_DATABASE", "gigtrust")
-AUTH_COLLECTION = os.getenv("MONGO_AUTH_COLLECTION", "users")
-
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@gigtrust.com").strip().lower()
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
 
@@ -32,14 +24,30 @@ ROLE_TO_SQL = {
 }
 
 
+def _get_config():
+    """Read all environment variables at call time, not at import time.
+    This is required because keyvault_loader.py populates os.environ AFTER
+    this module is imported — so any module-level os.getenv() calls would
+    read None before Key Vault has loaded the secrets."""
+    return {
+        "MONGO_URI": os.getenv("MONGO_URI"),
+        "MONGO_DATABASE": os.getenv("MONGO_DATABASE", "gigtrust"),
+        "AUTH_COLLECTION": os.getenv("MONGO_AUTH_COLLECTION", "users"),
+        "ADMIN_EMAIL": os.getenv("ADMIN_EMAIL", "admin@gigtrust.com").strip().lower(),
+        "ADMIN_PASSWORD": os.getenv("ADMIN_PASSWORD", "admin123"),
+        "JWT_SECRET_KEY": os.getenv("JWT_SECRET_KEY"),
+    }
+
+
 def _get_collection():
-    if not MONGO_URI:
+    config = _get_config()
+    if not config["MONGO_URI"]:
         raise RuntimeError("MONGO_URI is not configured.")
 
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+    client = MongoClient(config["MONGO_URI"], serverSelectionTimeoutMS=10000)
     client.admin.command("ping")
 
-    collection = client[MONGO_DATABASE][AUTH_COLLECTION]
+    collection = client[config["MONGO_DATABASE"]][config["AUTH_COLLECTION"]]
     collection.create_index([("email", ASCENDING)], unique=True)
     return client, collection
 
@@ -87,9 +95,7 @@ def _verify_password(password: str, encoded: str) -> bool:
 
 
 def _create_sql_user(full_name: str, email: str, role_sql: str) -> int:
-    """Creates a matching row in the SQL Users table and returns its user_id.
-    The SQL row does not store a usable password hash (auth is via Mongo),
-    so we store a placeholder — SQL login is not a supported path."""
+    """Creates a matching row in the SQL Users table and returns its user_id."""
     connection = get_db_connection()
     cursor = connection.cursor()
 
@@ -113,6 +119,7 @@ def _create_sql_user(full_name: str, email: str, role_sql: str) -> int:
 
 
 def _create_token(sql_user_id: int, email: str, role: str) -> str:
+    jwt_secret = _get_config()["JWT_SECRET_KEY"]
     payload = {
         "sub": str(sql_user_id),
         "email": email,
@@ -120,12 +127,13 @@ def _create_token(sql_user_id: int, email: str, role: str) -> str:
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY_HOURS),
         "iat": datetime.now(timezone.utc),
     }
-    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, jwt_secret, algorithm=JWT_ALGORITHM)
 
 
 def decode_token(token: str) -> dict:
     """Raises jwt.PyJWTError on invalid/expired tokens."""
-    return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    jwt_secret = _get_config()["JWT_SECRET_KEY"]
+    return jwt.decode(token, jwt_secret, algorithms=[JWT_ALGORITHM])
 
 
 def register_account(name: str, email: str, password: str, role: str):
@@ -156,8 +164,6 @@ def register_account(name: str, email: str, password: str, role: str):
     try:
         client, collection = _get_collection()
 
-        # Create the SQL-side identity first, since Gigs/Bids/Contracts/
-        # Transactions all reference Users(user_id).
         sql_user_id = _create_sql_user(
             full_name=name,
             email=email,
@@ -202,18 +208,19 @@ def register_account(name: str, email: str, password: str, role: str):
 def login_account(email: str, password: str, role: str):
     role = role.strip().lower()
     email = email.strip().lower()
+    config = _get_config()
 
     # Admin credentials are fixed and are NOT stored in MongoDB or SQL.
     if role == "admin":
-        if email == ADMIN_EMAIL and hmac.compare_digest(password, ADMIN_PASSWORD):
-            token = _create_token(sql_user_id=0, email=ADMIN_EMAIL, role="ADMIN")
+        if email == config["ADMIN_EMAIL"] and hmac.compare_digest(password, config["ADMIN_PASSWORD"]):
+            token = _create_token(sql_user_id=0, email=config["ADMIN_EMAIL"], role="ADMIN")
             return {
                 "status": "success",
                 "message": "Admin login successful.",
                 "token": token,
                 "user": {
                     "name": "Administrator",
-                    "email": ADMIN_EMAIL,
+                    "email": config["ADMIN_EMAIL"],
                     "role": "admin",
                 },
             }
