@@ -216,6 +216,71 @@ def get_my_contracts(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Only clients and freelancers have contracts.")
     return marketplace.list_my_contracts(int(current_user["sub"]), role)
 
+# ---------------------------------------------------------
+# ADMIN ENDPOINTS
+# ---------------------------------------------------------
+
+@app.get("/admin/users")
+def get_all_users(current_user: dict = Depends(get_current_user)):
+    require_role(current_user, "ADMIN")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT user_id, full_name, email, role, balance, created_at FROM Users ORDER BY created_at DESC"
+        )
+        columns = [c[0] for c in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.get("/admin/gigs")
+def get_all_gigs(current_user: dict = Depends(get_current_user)):
+    require_role(current_user, "ADMIN")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT g.gig_id, g.title, g.budget, g.status,
+                   u.full_name AS client_name, g.created_at
+            FROM Gigs g
+            JOIN Users u ON u.user_id = g.client_id
+            ORDER BY g.created_at DESC
+            """
+        )
+        columns = [c[0] for c in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.get("/admin/transactions")
+def get_all_transactions(current_user: dict = Depends(get_current_user)):
+    require_role(current_user, "ADMIN")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT t.transaction_id, t.amount, t.transaction_type,
+                   t.status, t.created_at,
+                   s.full_name AS sender_name,
+                   r.full_name AS receiver_name
+            FROM Transactions t
+            JOIN Users s ON s.user_id = t.sender_id
+            LEFT JOIN Users r ON r.user_id = t.receiver_id
+            ORDER BY t.created_at DESC
+            """
+        )
+        columns = [c[0] for c in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.post("/bids/{bid_id}/accept")
 def accept_a_bid(bid_id: int, current_user: dict = Depends(get_current_user)):

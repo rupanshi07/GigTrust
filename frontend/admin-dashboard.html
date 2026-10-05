@@ -10,7 +10,13 @@
   <aside class="sidebar">
     <div class="side-logo"><div class="logo small">G</div><span>GigTrust</span></div>
     <div class="role-pill">Admin</div>
-    <nav><a class="active" href="#">Dashboard</a><a href="#" onclick="return false;">Users</a><a href="#" onclick="return false;">Freelancers</a><a href="#" onclick="return false;">Transactions</a><a href="#" onclick="return false;">System Health</a></nav>
+    <nav>
+      <a class="active" href="#">Dashboard</a>
+      <a href="#usersSection">Users</a>
+      <a href="#gigsSection">Gigs</a>
+      <a href="#transactionsSection">Transactions</a>
+      <a href="#healthSection">System Health</a>
+    </nav>
     <button id="logoutBtn" class="secondary-btn">Logout</button>
   </aside>
 
@@ -18,15 +24,20 @@
     <header class="dash-header">
       <div>
         <p class="eyebrow">ADMIN DASHBOARD</p>
-        <h1>Welcome, <span id="welcomeName">GigTrust User</span></h1>
+        <h1>Welcome, <span id="welcomeName">Admin</span></h1>
         <p class="muted">Monitor users, transactions and platform health.</p>
       </div>
       <div class="avatar">AD</div>
     </header>
 
-    <section class="stats-grid"><article class="stat-card"><span>Total Users</span><strong>156</strong><small>Demo data</small></article><article class="stat-card"><span>Freelancers</span><strong>89</strong><small>Demo data</small></article><article class="stat-card"><span>Contracts</span><strong>34</strong><small>Demo data</small></article><article class="stat-card"><span>Disputes</span><strong>3</strong><small>Demo data</small></article></section>
+    <section class="stats-grid">
+      <article class="stat-card"><span>Total Users</span><strong id="statTotalUsers">—</strong><small id="statTotalUsersLabel">Loading...</small></article>
+      <article class="stat-card"><span>Total Gigs</span><strong id="statTotalGigs">—</strong><small id="statTotalGigsLabel">Loading...</small></article>
+      <article class="stat-card"><span>Transactions</span><strong id="statTotalTransactions">—</strong><small id="statTotalTransactionsLabel">Loading...</small></article>
+      <article class="stat-card"><span>Platform</span><strong>Live</strong><small>All systems</small></article>
+    </section>
 
-    <section class="content-grid">
+    <section class="content-grid" id="healthSection">
       <article class="panel">
         <div class="panel-title">
           <h2>Live Backend Connection</h2>
@@ -37,15 +48,31 @@
         <div class="health-row"><div><span class="status-dot" id="cassandraDot"></span><strong>Cassandra</strong></div><span id="cassandraStatus">Checking...</span></div>
         <p class="api-url" id="apiUrl"></p>
       </article>
-
       <article class="panel">
-        <h2>Review Prototype</h2>
-        <p class="muted">This role-based dashboard is intentionally simple for the current review. Marketplace features can be added for the final review.</p>
+        <h2>About GigTrust</h2>
+        <p class="muted">Cloud-native freelance marketplace with Azure SQL, Cosmos DB MongoDB, Cosmos DB Cassandra, JWT authentication, escrow-based payments, and rule-based fraud scoring.</p>
+        <p class="muted" style="margin-top:12px">Region: Central India &middot; Key Vault: gigtrust-kv-24262</p>
       </article>
+    </section>
+
+    <section id="usersSection">
+      <h2 class="section-title">All Users</h2>
+      <div id="usersList" class="item-list"></div>
+    </section>
+
+    <section id="gigsSection">
+      <h2 class="section-title">All Gigs</h2>
+      <div id="gigsList" class="item-list"></div>
+    </section>
+
+    <section id="transactionsSection">
+      <h2 class="section-title">All Transactions</h2>
+      <div id="transactionsList" class="item-list"></div>
     </section>
   </main>
 
   <script src="config.js"></script>
   <script src="dashboard-common.js"></script>
+  <script src="admin-dashboard.js"></script>
 </body>
 </html>

@@ -10,7 +10,12 @@
   <aside class="sidebar">
     <div class="side-logo"><div class="logo small">G</div><span>GigTrust</span></div>
     <div class="role-pill">Freelancer</div>
-    <nav><a class="active" href="#">Dashboard</a><a href="#" onclick="return false;">Find Gigs</a><a href="#" onclick="return false;">My Bids</a><a href="#" onclick="return false;">Earnings</a></nav>
+    <nav>
+  <a class="active" href="#">Dashboard</a>
+  <a href="#myBidsSection">My Bids</a>
+  <a href="#browseGigsSection">Find Gigs</a>
+  <a href="#myContractsSection">Earnings</a>
+</nav>
     <button id="logoutBtn" class="secondary-btn">Logout</button>
   </aside>
 
@@ -38,18 +43,18 @@
         <p class="api-url" id="apiUrl"></p>
       </article>
 
-            <article class="panel">
+                  <article class="panel" id="myBidsSection">
         <h2>My Bids</h2>
         <div id="myBidsList" class="item-list"></div>
       </article>
     </section>
 
-    <section>
+        <section id="browseGigsSection">
       <h2 class="section-title">Browse Open Gigs</h2>
       <div id="browseGigsList" class="item-list"></div>
     </section>
 
-    <section>
+        <section id="myContractsSection">
       <h2 class="section-title">My Contracts</h2>
       <div id="myContractsList" class="item-list"></div>
     </section>
