@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -6,19 +6,21 @@ from pymongo import MongoClient
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DATABASE = os.getenv("MONGO_DATABASE", "gigtrust")
-MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "activity_logs")
-
 
 def get_mongo_collection():
+    # Read settings at call time, because keyvault_loader fills os.environ
+    # after some modules have already been imported.
+    mongo_uri = os.getenv("MONGO_URI")
+    mongo_database = os.getenv("MONGO_DATABASE", "gigtrust")
+    mongo_collection = os.getenv("MONGO_COLLECTION", "activity_logs")
+
     client = MongoClient(
-        MONGO_URI,
+        mongo_uri,
         serverSelectionTimeoutMS=10000
     )
 
-    database = client[MONGO_DATABASE]
-    collection = database[MONGO_COLLECTION]
+    database = client[mongo_database]
+    collection = database[mongo_collection]
 
     return client, collection
 

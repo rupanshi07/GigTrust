@@ -1,3 +1,4 @@
+﻿from backend import keyvault_loader
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -6,7 +7,6 @@ from backend.database import get_db_connection
 from backend.auth_dependency import get_current_user
 from backend.services import marketplace
 from agent.resource_manager import make_resource_decision
-from backend import keyvault_loader  
 
 
 from telemetry.telemetry_client import (

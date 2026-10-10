@@ -1,5 +1,6 @@
-import pyodbc, os
+﻿import pyodbc, os
 from dotenv import load_dotenv
+from backend import keyvault_loader  # loads settings from Key Vault into os.environ
 
 load_dotenv()
 
@@ -15,8 +16,6 @@ conn_str = (
 
 conn = pyodbc.connect(conn_str)
 cursor = conn.cursor()
-cursor.execute("UPDATE Users SET balance = 10000 WHERE email = 'alice@example.com'")
+cursor.execute("UPDATE Users SET balance = 10000000 WHERE email = 'alice@example.com'")
 conn.commit()
 print("Balance updated. Rows affected:", cursor.rowcount)
-cursor.close()
-conn.close()

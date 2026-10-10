@@ -1,6 +1,6 @@
-// GigTrust frontend configuration
-// This points the frontend to your deployed FastAPI backend in Central India.
-// You can later change this to your Traffic Manager/custom domain.
+﻿// GigTrust frontend configuration
+// Points the frontend to the deployed FastAPI backend in Central India.
+// Later this can change to the Traffic Manager URL.
 window.GIGTRUST_CONFIG = {
-  API_BASE_URL: "http://127.0.0.1:8000"
+  API_BASE_URL: "https://gigtrust-api-india.bluebush-c9d606d0.centralindia.azurecontainerapps.io"
 };
