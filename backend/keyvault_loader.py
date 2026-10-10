@@ -1,13 +1,10 @@
 import os
-from azure.identity import InteractiveBrowserCredential
-from azure.keyvault.secrets import SecretClient
+from dotenv import load_dotenv
+
+load_dotenv()
 
 KEY_VAULT_URL = "https://gigtrust-kv-24262.vault.azure.net/"
 
-# Maps Key Vault secret names (hyphens only) to the environment variable
-# names the rest of the codebase already expects (underscores). This means
-# database.py, auth_users.py, telemetry_client.py etc. need ZERO changes —
-# they keep reading os.getenv("SQL_PASSWORD") etc. exactly as before.
 SECRET_NAME_TO_ENV_VAR = {
     "SQL-SERVER": "SQL_SERVER",
     "SQL-DATABASE": "SQL_DATABASE",
@@ -26,8 +23,23 @@ SECRET_NAME_TO_ENV_VAR = {
 
 
 def load_secrets_from_key_vault():
+    # Cloud case: skip Key Vault if every setting is already in the environment
+    if all(os.environ.get(v) for v in SECRET_NAME_TO_ENV_VAR.values()):
+        print("[Key Vault] All settings already in environment, skipping Key Vault.")
+        return
+
     try:
-        credential = InteractiveBrowserCredential()
+        from azure.identity import DefaultAzureCredential, InteractiveBrowserCredential
+        from azure.keyvault.secrets import SecretClient
+
+        # Try DefaultAzureCredential first (works in Azure with Managed Identity,
+        # and also picks up az CLI credentials, environment variables, etc.)
+        # Fall back to InteractiveBrowserCredential for local dev.
+        try:
+            credential = DefaultAzureCredential(exclude_interactive_browser_credential=False)
+        except Exception:
+            credential = InteractiveBrowserCredential()
+
         client = SecretClient(vault_url=KEY_VAULT_URL, credential=credential)
 
         loaded = 0
@@ -42,7 +54,7 @@ def load_secrets_from_key_vault():
         print(f"[Key Vault] Loaded {loaded}/{len(SECRET_NAME_TO_ENV_VAR)} secrets successfully.")
 
     except Exception as e:
-        print(f"[Key Vault] Could not connect to Key Vault, falling back to .env: {e}")
+        print(f"[Key Vault] Unavailable, falling back to environment variables: {e}")
 
 
 load_secrets_from_key_vault()
