@@ -1,0 +1,7 @@
+scorer,threshold,TP,FP,TN,FN,precision,recall,f1,accuracy
+Preventive (bid acceptance),25,25,3,52,10,0.893,0.714,0.794,0.856
+Preventive (bid acceptance),50,20,0,55,15,1.0,0.571,0.727,0.833
+Preventive (bid acceptance),75,0,0,55,35,0.0,0.0,0.0,0.611
+Audit (contract),25,29,5,50,6,0.853,0.829,0.841,0.878
+Audit (contract),50,25,0,55,10,1.0,0.714,0.833,0.889
+Audit (contract),75,12,0,55,23,1.0,0.343,0.511,0.744
