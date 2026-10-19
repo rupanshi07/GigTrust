@@ -596,3 +596,14 @@ def create_second_region_telemetry():
 
     except Exception as e:
         return {"status": "failed", "error": str(e)}
+
+
+# ---- Digital twin and frontend hosting ----
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from backend.twin_routes import router as twin_router
+
+app.include_router(twin_router)
+
+_frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+app.mount("/app", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
