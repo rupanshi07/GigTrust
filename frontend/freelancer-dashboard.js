@@ -234,3 +234,48 @@ async function toggleFraudScore(contractId) {
 loadOpenGigs();
 loadMyBids();
 loadMyContracts();
+
+
+// ---------------------------------------------------------
+// LIVE STAT CARDS (replaces the placeholder demo numbers)
+// ---------------------------------------------------------
+
+function setStatCard(label, value, caption) {
+  const labelEl = Array.from(document.querySelectorAll("body *")).find(
+    (el) => el.children.length === 0 && el.textContent.trim() === label &&
+            el.nextElementSibling && el.nextElementSibling.nextElementSibling &&
+            /demo data|unavailable|live/i.test(el.nextElementSibling.nextElementSibling.textContent)
+  );
+  if (!labelEl) return;
+  const valueEl = labelEl.nextElementSibling;
+  const captionEl = valueEl.nextElementSibling;
+  valueEl.textContent = value;
+  captionEl.textContent = caption;
+}
+
+async function updateStats() {
+  try {
+    const [bids, contracts] = await Promise.all([
+      authFetch("/bids/mine"),
+      authFetch("/contracts/mine"),
+    ]);
+
+    const activeBids = bids.filter((b) => b.status === "PENDING").length;
+    const held = contracts
+      .filter((c) => c.escrow_status === "HELD")
+      .reduce((sum, c) => sum + Number(c.agreed_amount || 0), 0);
+    const completed = contracts.filter((c) => c.contract_status === "COMPLETED").length;
+
+    setStatCard("Active Bids", activeBids, "Pending bids");
+    setStatCard("Contracts", contracts.length, "All contracts");
+    setStatCard("Pending", formatCurrency(held), "Held in escrow");
+    setStatCard("Completed", completed, "Contracts finished");
+  } catch (error) {
+    ["Active Bids", "Contracts", "Pending", "Completed"].forEach((l) =>
+      setStatCard(l, "-", "Unavailable")
+    );
+  }
+}
+
+updateStats();
+setInterval(updateStats, 15000);
