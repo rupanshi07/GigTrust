@@ -159,7 +159,12 @@ async function loadMyContracts() {
         let actionButton = "";
 
         if (contract.contract_status === "ACTIVE" && contract.escrow_status === "HELD") {
-          actionButton = `<button class="btn-small submit-work-btn" data-contract-id="${contract.contract_id}">Submit Work</button>`;
+          actionButton = `
+  <div class="deliver-box">
+    <input type="file" id="file-${contract.contract_id}" />
+    <input type="text" id="note-${contract.contract_id}" placeholder="Note to client (optional)" />
+    <button class="btn-small submit-work-btn" data-contract-id="${contract.contract_id}">Upload and Submit Work</button>
+  </div>`;
         }
 
         return `
@@ -193,18 +198,50 @@ async function loadMyContracts() {
   }
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = () => reject(new Error("Could not read the file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function submitWork(contractId) {
   const errorBox = document.getElementById(`contract-error-${contractId}`);
   errorBox.textContent = "";
 
+  const file = document.getElementById(`file-${contractId}`).files[0];
+  const note = document.getElementById(`note-${contractId}`).value.trim();
+
+  if (!file) {
+    errorBox.textContent = "Please attach your completed work.";
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    errorBox.textContent = "File is larger than 5 MB.";
+    return;
+  }
+
   try {
+    errorBox.textContent = "Uploading...";
+    const data_base64 = await fileToBase64(file);
+    await authFetch(`/contracts/${contractId}/deliverable`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        file_name: file.name,
+        content_type: file.type || "application/octet-stream",
+        data_base64,
+        note,
+      }),
+    });
     await authFetch(`/contracts/${contractId}/submit-work`, { method: "POST" });
     loadMyContracts();
   } catch (error) {
     errorBox.textContent = error.message;
   }
 }
-
 async function toggleFraudScore(contractId) {
   const box = document.getElementById(`fraud-box-${contractId}`);
 

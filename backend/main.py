@@ -607,3 +607,6 @@ app.include_router(twin_router)
 
 _frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 app.mount("/app", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
+
+from backend.files_routes import router as files_router
+app.include_router(files_router)
