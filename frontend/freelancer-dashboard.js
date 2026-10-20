@@ -279,3 +279,51 @@ async function updateStats() {
 
 updateStats();
 setInterval(updateStats, 15000);
+
+
+// ---------------------------------------------------------
+// LIVE STAT CARDS
+// ---------------------------------------------------------
+const STAT_LABELS = ["Active Bids", "Contracts", "Pending", "Completed"];
+
+function findStatCards() {
+  const cards = {};
+  document.querySelectorAll("body *").forEach((el) => {
+    if (el.children.length === 0 && /^(demo data|unavailable|loading)/i.test(el.textContent.trim()) || el.dataset.stat) {
+      const card = el.parentElement;
+      const valueEl = el.previousElementSibling;
+      if (!card || !valueEl) return;
+      const label = el.dataset.stat || STAT_LABELS.find((l) => card.textContent.trim().startsWith(l));
+      if (label) {
+        el.dataset.stat = label;
+        cards[label] = { valueEl, captionEl: el };
+      }
+    }
+  });
+  return cards;
+}
+
+function setStat(cards, label, value, caption) {
+  if (!cards[label]) return;
+  cards[label].valueEl.textContent = value;
+  cards[label].captionEl.textContent = caption;
+}
+
+async function updateStats() {
+  const cards = findStatCards();
+  try {
+    const [bids, contracts] = await Promise.all([authFetch("/bids/mine"), authFetch("/contracts/mine")]);
+    const held = contracts
+      .filter((c) => c.escrow_status === "HELD")
+      .reduce((sum, c) => sum + Number(c.agreed_amount || 0), 0);
+    setStat(cards, "Active Bids", bids.filter((b) => b.status === "PENDING").length, "Pending bids");
+    setStat(cards, "Contracts", contracts.length, "All contracts");
+    setStat(cards, "Pending", formatCurrency(held), "Held in escrow");
+    setStat(cards, "Completed", contracts.filter((c) => c.contract_status === "COMPLETED").length, "Contracts finished");
+  } catch (error) {
+    STAT_LABELS.forEach((l) => setStat(cards, l, "-", "Unavailable"));
+  }
+}
+
+updateStats();
+setInterval(updateStats, 15000);
