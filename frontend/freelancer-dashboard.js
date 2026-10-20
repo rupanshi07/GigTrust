@@ -7,6 +7,8 @@ const myContractsList = document.getElementById("myContractsList");
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const STATS_REFRESH_MS = 15000;
 const STAT_LABELS = ["Active Bids", "Contracts", "Pending", "Completed"];
+// Keep in sync with ALLOWED_EXTENSIONS in backend/files_routes.py
+const ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".zip", ".txt", ".md", ".csv", ".docx", ".pptx", ".xlsx"];
 
 function statusBadgeClass(status) {
   const map = {
@@ -40,14 +42,15 @@ async function loadOpenGigs() {
   try {
     const gigs = await authFetch("/gigs");
 
-    if (gigs.length === 0) {
+    if (!Array.isArray(gigs) || gigs.length === 0) {
       browseGigsList.innerHTML = "<p class='muted'>No open gigs right now.</p>";
       return;
     }
 
     browseGigsList.innerHTML = gigs
-      .map(
-        (gig) => `
+      .map((gig) => {
+        const gigId = escapeHtml(String(gig.gig_id));
+        return `
         <div class="item-row">
           <div class="item-row-head">
             <div>
@@ -57,18 +60,18 @@ async function loadOpenGigs() {
             </div>
             ${badge(gig.status)}
           </div>
-          <button class="btn-small secondary bid-toggle-btn" data-gig-id="${gig.gig_id}">Place a Bid</button>
-          <div class="bids-box hidden" id="bid-form-${gig.gig_id}">
-            <form class="inline-form bid-form" data-gig-id="${gig.gig_id}">
+          <button class="btn-small secondary bid-toggle-btn" data-gig-id="${gigId}">Place a Bid</button>
+          <div class="bids-box hidden" id="bid-form-${gigId}">
+            <form class="inline-form bid-form" data-gig-id="${gigId}">
               <input type="number" step="0.01" min="1" placeholder="Your bid amount (₹)" class="bid-amount-input" required />
               <textarea placeholder="Your proposal" class="bid-proposal-input" required></textarea>
               <button type="submit" class="btn-small">Submit Bid</button>
             </form>
-            <div class="inline-error bid-error" id="bid-error-${gig.gig_id}"></div>
-            <div class="inline-success bid-success" id="bid-success-${gig.gig_id}"></div>
+            <div class="inline-error bid-error" id="bid-error-${gigId}"></div>
+            <div class="inline-success bid-success" id="bid-success-${gigId}"></div>
           </div>
-        </div>`
-      )
+        </div>`;
+      })
       .join("");
 
     document.querySelectorAll(".bid-toggle-btn").forEach((toggleButton) => {
@@ -133,7 +136,7 @@ async function loadMyBids() {
   try {
     const bids = await authFetch("/bids/mine");
 
-    if (bids.length === 0) {
+    if (!Array.isArray(bids) || bids.length === 0) {
       myBidsList.innerHTML = "<p class='muted'>You haven't placed any bids yet.</p>";
       return;
     }
@@ -162,16 +165,18 @@ async function loadMyBids() {
 // ---------------------------------------------------------
 
 function buildDeliverableSection(contract) {
+  const id = escapeHtml(String(contract.contract_id));
   const isActive = contract.contract_status === "ACTIVE";
   const isFunded = contract.escrow_status === "HELD";
 
   if (isActive && isFunded) {
+    const accept = ALLOWED_EXTENSIONS.join(",");
     return `
       <div class="deliver-box">
-        <input type="file" id="file-${contract.contract_id}" />
-        <input type="text" id="note-${contract.contract_id}" placeholder="Note to client (optional)" />
-        <button class="btn-small submit-work-btn" data-contract-id="${contract.contract_id}">Upload and Submit Work</button>
-        <div class="inline-success upload-status" id="upload-status-${contract.contract_id}"></div>
+        <input type="file" id="file-${id}" accept="${accept}" />
+        <input type="text" id="note-${id}" placeholder="Note to client (optional)" maxlength="500" />
+        <button class="btn-small submit-work-btn" data-contract-id="${id}">Upload and Submit Work</button>
+        <div class="inline-success upload-status" id="upload-status-${id}"></div>
       </div>`;
   }
 
@@ -192,14 +197,15 @@ async function loadMyContracts() {
   try {
     const contracts = await authFetch("/contracts/mine");
 
-    if (contracts.length === 0) {
+    if (!Array.isArray(contracts) || contracts.length === 0) {
       myContractsList.innerHTML = "<p class='muted'>No contracts yet.</p>";
       return;
     }
 
     myContractsList.innerHTML = contracts
-      .map(
-        (contract) => `
+      .map((contract) => {
+        const id = escapeHtml(String(contract.contract_id));
+        return `
         <div class="item-row">
           <div class="item-row-head">
             <div>
@@ -212,11 +218,11 @@ async function loadMyContracts() {
             <div>${badge(contract.contract_status)} ${badge(contract.escrow_status)}</div>
           </div>
           ${buildDeliverableSection(contract)}
-          <button class="btn-small secondary fraud-btn" data-contract-id="${contract.contract_id}">View Fraud Score</button>
-          <div class="inline-error contract-error" id="contract-error-${contract.contract_id}"></div>
-          <div class="fraud-box hidden" id="fraud-box-${contract.contract_id}"></div>
-        </div>`
-      )
+          <button class="btn-small secondary fraud-btn" data-contract-id="${id}">View Fraud Score</button>
+          <div class="inline-error contract-error" id="contract-error-${id}"></div>
+          <div class="fraud-box hidden" id="fraud-box-${id}"></div>
+        </div>`;
+      })
       .join("");
 
     document.querySelectorAll(".submit-work-btn").forEach((submitButton) => {
@@ -239,6 +245,11 @@ function fileToBase64(file) {
   });
 }
 
+function getExtension(fileName) {
+  const dot = fileName.lastIndexOf(".");
+  return dot === -1 ? "" : fileName.slice(dot).toLowerCase();
+}
+
 async function submitWork(contractId) {
   const errorBox = document.getElementById(`contract-error-${contractId}`);
   const statusBox = document.getElementById(`upload-status-${contractId}`);
@@ -256,8 +267,16 @@ async function submitWork(contractId) {
     errorBox.textContent = "Please attach your completed work.";
     return;
   }
+  if (file.size === 0) {
+    errorBox.textContent = "The selected file is empty.";
+    return;
+  }
   if (file.size > MAX_FILE_SIZE_BYTES) {
     errorBox.textContent = "File is larger than 5 MB.";
+    return;
+  }
+  if (!ALLOWED_EXTENSIONS.includes(getExtension(file.name))) {
+    errorBox.textContent = "File type not allowed. Allowed: " + ALLOWED_EXTENSIONS.join(", ");
     return;
   }
 
@@ -316,25 +335,36 @@ async function toggleFraudScore(contractId) {
 // LIVE STAT CARDS
 // ---------------------------------------------------------
 
-// Finds each stat card once, by locating the placeholder caption
-// ("Demo data" / "Unavailable" / "Loading") under each label.
+// Each stat card is expected to be: label -> value -> caption (siblings).
+// We locate the label by its text, so it keeps working after captions change.
 function findStatCards() {
   const cards = {};
+  const placeholder = /^(demo data|unavailable|loading)/i;
 
-  document.querySelectorAll("body *").forEach((element) => {
-    const isLeaf = element.children.length === 0;
-    const isPlaceholderCaption = /^(demo data|unavailable|loading)/i.test(element.textContent.trim());
-    if (!isLeaf || !isPlaceholderCaption) return;
+  const leaves = Array.from(document.querySelectorAll("body *")).filter(
+    (el) =>
+      el.children.length === 0 &&
+      !el.closest("#browseGigsList, #myBidsList, #myContractsList")
+  );
 
-    const card = element.parentElement;
-    const valueElement = element.previousElementSibling;
-    if (!card || !valueElement) return;
+  STAT_LABELS.forEach((label) => {
+    const candidates = leaves.filter(
+      (el) =>
+        el.textContent.trim().toLowerCase() === label.toLowerCase() &&
+        el.nextElementSibling &&
+        el.nextElementSibling.nextElementSibling
+    );
+    if (candidates.length === 0) return;
 
-    const cardText = card.textContent.trim();
-    const label = STAT_LABELS.find((statLabel) => cardText.startsWith(statLabel));
-    if (label) {
-      cards[label] = { valueElement, captionElement: element };
-    }
+    // Prefer the candidate whose caption still looks like a placeholder.
+    const best =
+      candidates.find((el) => placeholder.test(el.nextElementSibling.nextElementSibling.textContent.trim())) ||
+      candidates[0];
+
+    cards[label] = {
+      valueElement: best.nextElementSibling,
+      captionElement: best.nextElementSibling.nextElementSibling,
+    };
   });
 
   return cards;
@@ -379,4 +409,6 @@ loadOpenGigs();
 loadMyBids();
 loadMyContracts();
 updateStats();
-setInterval(updateStats, STATS_REFRESH_MS);
+setInterval(() => {
+  if (!document.hidden) updateStats();
+}, STATS_REFRESH_MS);

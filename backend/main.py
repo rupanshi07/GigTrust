@@ -610,3 +610,6 @@ app.mount("/app", StaticFiles(directory=str(_frontend_dir), html=True), name="fr
 
 from backend.files_routes import router as files_router
 app.include_router(files_router)
+
+from backend.files_routes import router as files_router
+app.include_router(files_router)
