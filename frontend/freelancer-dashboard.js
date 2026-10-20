@@ -27,7 +27,7 @@ function statusBadgeClass(status) {
 }
 
 function badge(status) {
-  return `<span class="badge ${statusBadgeClass(status)}">${escapeHtml(status)}</span>`;
+  return `<span class="badge ${statusBadgeClass(status)}">${escapeHtml(String(status))}</span>`;
 }
 
 // ---------------------------------------------------------
@@ -158,8 +158,33 @@ async function loadMyBids() {
 }
 
 // ---------------------------------------------------------
-// MY CONTRACTS (submit work / view fraud score)
+// MY CONTRACTS (upload deliverable / submit work / fraud score)
 // ---------------------------------------------------------
+
+function buildDeliverableSection(contract) {
+  const isActive = contract.contract_status === "ACTIVE";
+  const isFunded = contract.escrow_status === "HELD";
+
+  if (isActive && isFunded) {
+    return `
+      <div class="deliver-box">
+        <input type="file" id="file-${contract.contract_id}" />
+        <input type="text" id="note-${contract.contract_id}" placeholder="Note to client (optional)" />
+        <button class="btn-small submit-work-btn" data-contract-id="${contract.contract_id}">Upload and Submit Work</button>
+        <div class="inline-success upload-status" id="upload-status-${contract.contract_id}"></div>
+      </div>`;
+  }
+
+  if (isActive && !isFunded) {
+    return "<p class='muted'>Upload is available once the client funds the escrow.</p>";
+  }
+
+  if (contract.contract_status === "WORK_SUBMITTED") {
+    return "<p class='muted'>Work submitted. Waiting for client review.</p>";
+  }
+
+  return "";
+}
 
 async function loadMyContracts() {
   myContractsList.innerHTML = "<p class='muted'>Loading...</p>";
@@ -173,19 +198,8 @@ async function loadMyContracts() {
     }
 
     myContractsList.innerHTML = contracts
-      .map((contract) => {
-        let actionButton = "";
-
-        if (contract.contract_status === "ACTIVE" && contract.escrow_status === "HELD") {
-          actionButton = `
-          <div class="deliver-box">
-            <input type="file" id="file-${contract.contract_id}" />
-            <input type="text" id="note-${contract.contract_id}" placeholder="Note to client (optional)" />
-            <button class="btn-small submit-work-btn" data-contract-id="${contract.contract_id}">Upload and Submit Work</button>
-          </div>`;
-        }
-
-        return `
+      .map(
+        (contract) => `
         <div class="item-row">
           <div class="item-row-head">
             <div>
@@ -197,12 +211,12 @@ async function loadMyContracts() {
             </div>
             <div>${badge(contract.contract_status)} ${badge(contract.escrow_status)}</div>
           </div>
-          ${actionButton}
+          ${buildDeliverableSection(contract)}
           <button class="btn-small secondary fraud-btn" data-contract-id="${contract.contract_id}">View Fraud Score</button>
           <div class="inline-error contract-error" id="contract-error-${contract.contract_id}"></div>
           <div class="fraud-box hidden" id="fraud-box-${contract.contract_id}"></div>
-        </div>`;
-      })
+        </div>`
+      )
       .join("");
 
     document.querySelectorAll(".submit-work-btn").forEach((submitButton) => {
@@ -219,7 +233,7 @@ async function loadMyContracts() {
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
     reader.onerror = () => reject(new Error("Could not read the file."));
     reader.readAsDataURL(file);
   });
@@ -227,11 +241,16 @@ function fileToBase64(file) {
 
 async function submitWork(contractId) {
   const errorBox = document.getElementById(`contract-error-${contractId}`);
+  const statusBox = document.getElementById(`upload-status-${contractId}`);
   const submitButton = document.querySelector(`.submit-work-btn[data-contract-id="${contractId}"]`);
-  errorBox.textContent = "";
+  const fileInput = document.getElementById(`file-${contractId}`);
+  const noteInput = document.getElementById(`note-${contractId}`);
 
-  const file = document.getElementById(`file-${contractId}`).files[0];
-  const note = document.getElementById(`note-${contractId}`).value.trim();
+  errorBox.textContent = "";
+  statusBox.textContent = "";
+
+  const file = fileInput.files[0];
+  const note = noteInput.value.trim();
 
   if (!file) {
     errorBox.textContent = "Please attach your completed work.";
@@ -244,7 +263,7 @@ async function submitWork(contractId) {
 
   submitButton.disabled = true;
   try {
-    errorBox.textContent = "Uploading...";
+    statusBox.textContent = "Uploading...";
     const data_base64 = await fileToBase64(file);
 
     await authFetch(`/contracts/${contractId}/deliverable`, {
@@ -258,11 +277,13 @@ async function submitWork(contractId) {
       }),
     });
 
+    statusBox.textContent = "Uploaded. Submitting work...";
     await authFetch(`/contracts/${contractId}/submit-work`, { method: "POST" });
 
     loadMyContracts();
     updateStats();
   } catch (error) {
+    statusBox.textContent = "";
     errorBox.textContent = error.message;
     submitButton.disabled = false;
   }
@@ -283,8 +304,8 @@ async function toggleFraudScore(contractId) {
     const score = await authFetch(`/fraud/score/contract/${contractId}`);
     const reasons = Array.isArray(score.reasons) ? score.reasons : [];
     box.innerHTML = `
-      <strong>Risk: ${escapeHtml(score.risk_tier)} (${escapeHtml(String(score.risk_score))} pts)</strong>
-      <ul>${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+      <strong>Risk: ${escapeHtml(String(score.risk_tier))} (${escapeHtml(String(score.risk_score))} pts)</strong>
+      <ul>${reasons.map((reason) => `<li>${escapeHtml(String(reason))}</li>`).join("")}</ul>
     `;
   } catch (error) {
     box.innerHTML = `<span class="inline-error">${escapeHtml(error.message)}</span>`;
@@ -295,7 +316,7 @@ async function toggleFraudScore(contractId) {
 // LIVE STAT CARDS
 // ---------------------------------------------------------
 
-// Finds each stat card once, by locating the caption element
+// Finds each stat card once, by locating the placeholder caption
 // ("Demo data" / "Unavailable" / "Loading") under each label.
 function findStatCards() {
   const cards = {};
