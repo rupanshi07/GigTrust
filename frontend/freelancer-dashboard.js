@@ -4,6 +4,10 @@ const browseGigsList = document.getElementById("browseGigsList");
 const myBidsList = document.getElementById("myBidsList");
 const myContractsList = document.getElementById("myContractsList");
 
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const STATS_REFRESH_MS = 15000;
+const STAT_LABELS = ["Active Bids", "Contracts", "Pending", "Completed"];
+
 function statusBadgeClass(status) {
   const map = {
     OPEN: "badge-open",
@@ -67,24 +71,35 @@ async function loadOpenGigs() {
       )
       .join("");
 
-    document.querySelectorAll(".bid-toggle-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.getElementById(`bid-form-${btn.dataset.gigId}`).classList.toggle("hidden");
+    document.querySelectorAll(".bid-toggle-btn").forEach((toggleButton) => {
+      toggleButton.addEventListener("click", () => {
+        document.getElementById(`bid-form-${toggleButton.dataset.gigId}`).classList.toggle("hidden");
       });
     });
 
-    document.querySelectorAll(".bid-form").forEach((form) => {
-      form.addEventListener("submit", async (event) => {
+    document.querySelectorAll(".bid-form").forEach((bidForm) => {
+      bidForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const gigId = form.dataset.gigId;
+        const gigId = bidForm.dataset.gigId;
         const errorBox = document.getElementById(`bid-error-${gigId}`);
         const successBox = document.getElementById(`bid-success-${gigId}`);
+        const submitButton = bidForm.querySelector("button[type='submit']");
         errorBox.textContent = "";
         successBox.textContent = "";
 
-        const bidAmount = parseFloat(form.querySelector(".bid-amount-input").value);
-        const proposal = form.querySelector(".bid-proposal-input").value.trim();
+        const bidAmount = parseFloat(bidForm.querySelector(".bid-amount-input").value);
+        const proposal = bidForm.querySelector(".bid-proposal-input").value.trim();
 
+        if (Number.isNaN(bidAmount) || bidAmount <= 0) {
+          errorBox.textContent = "Enter a valid bid amount.";
+          return;
+        }
+        if (!proposal) {
+          errorBox.textContent = "Proposal cannot be empty.";
+          return;
+        }
+
+        submitButton.disabled = true;
         try {
           await authFetch(`/gigs/${gigId}/bids`, {
             method: "POST",
@@ -93,10 +108,13 @@ async function loadOpenGigs() {
           });
 
           successBox.textContent = "Bid submitted successfully.";
-          form.reset();
+          bidForm.reset();
           loadMyBids();
+          updateStats();
         } catch (error) {
           errorBox.textContent = error.message;
+        } finally {
+          submitButton.disabled = false;
         }
       });
     });
@@ -160,11 +178,11 @@ async function loadMyContracts() {
 
         if (contract.contract_status === "ACTIVE" && contract.escrow_status === "HELD") {
           actionButton = `
-  <div class="deliver-box">
-    <input type="file" id="file-${contract.contract_id}" />
-    <input type="text" id="note-${contract.contract_id}" placeholder="Note to client (optional)" />
-    <button class="btn-small submit-work-btn" data-contract-id="${contract.contract_id}">Upload and Submit Work</button>
-  </div>`;
+          <div class="deliver-box">
+            <input type="file" id="file-${contract.contract_id}" />
+            <input type="text" id="note-${contract.contract_id}" placeholder="Note to client (optional)" />
+            <button class="btn-small submit-work-btn" data-contract-id="${contract.contract_id}">Upload and Submit Work</button>
+          </div>`;
         }
 
         return `
@@ -187,11 +205,11 @@ async function loadMyContracts() {
       })
       .join("");
 
-    document.querySelectorAll(".submit-work-btn").forEach((btn) => {
-      btn.addEventListener("click", () => submitWork(btn.dataset.contractId));
+    document.querySelectorAll(".submit-work-btn").forEach((submitButton) => {
+      submitButton.addEventListener("click", () => submitWork(submitButton.dataset.contractId));
     });
-    document.querySelectorAll(".fraud-btn").forEach((btn) => {
-      btn.addEventListener("click", () => toggleFraudScore(btn.dataset.contractId));
+    document.querySelectorAll(".fraud-btn").forEach((fraudButton) => {
+      fraudButton.addEventListener("click", () => toggleFraudScore(fraudButton.dataset.contractId));
     });
   } catch (error) {
     myContractsList.innerHTML = `<p class="inline-error">${escapeHtml(error.message)}</p>`;
@@ -209,6 +227,7 @@ function fileToBase64(file) {
 
 async function submitWork(contractId) {
   const errorBox = document.getElementById(`contract-error-${contractId}`);
+  const submitButton = document.querySelector(`.submit-work-btn[data-contract-id="${contractId}"]`);
   errorBox.textContent = "";
 
   const file = document.getElementById(`file-${contractId}`).files[0];
@@ -218,14 +237,16 @@ async function submitWork(contractId) {
     errorBox.textContent = "Please attach your completed work.";
     return;
   }
-  if (file.size > 5 * 1024 * 1024) {
+  if (file.size > MAX_FILE_SIZE_BYTES) {
     errorBox.textContent = "File is larger than 5 MB.";
     return;
   }
 
+  submitButton.disabled = true;
   try {
     errorBox.textContent = "Uploading...";
     const data_base64 = await fileToBase64(file);
+
     await authFetch(`/contracts/${contractId}/deliverable`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -236,12 +257,17 @@ async function submitWork(contractId) {
         note,
       }),
     });
+
     await authFetch(`/contracts/${contractId}/submit-work`, { method: "POST" });
+
     loadMyContracts();
+    updateStats();
   } catch (error) {
     errorBox.textContent = error.message;
+    submitButton.disabled = false;
   }
 }
+
 async function toggleFraudScore(contractId) {
   const box = document.getElementById(`fraud-box-${contractId}`);
 
@@ -255,12 +281,72 @@ async function toggleFraudScore(contractId) {
 
   try {
     const score = await authFetch(`/fraud/score/contract/${contractId}`);
+    const reasons = Array.isArray(score.reasons) ? score.reasons : [];
     box.innerHTML = `
-      <strong>Risk: ${escapeHtml(score.risk_tier)} (${score.risk_score} pts)</strong>
-      <ul>${score.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+      <strong>Risk: ${escapeHtml(score.risk_tier)} (${escapeHtml(String(score.risk_score))} pts)</strong>
+      <ul>${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
     `;
   } catch (error) {
     box.innerHTML = `<span class="inline-error">${escapeHtml(error.message)}</span>`;
+  }
+}
+
+// ---------------------------------------------------------
+// LIVE STAT CARDS
+// ---------------------------------------------------------
+
+// Finds each stat card once, by locating the caption element
+// ("Demo data" / "Unavailable" / "Loading") under each label.
+function findStatCards() {
+  const cards = {};
+
+  document.querySelectorAll("body *").forEach((element) => {
+    const isLeaf = element.children.length === 0;
+    const isPlaceholderCaption = /^(demo data|unavailable|loading)/i.test(element.textContent.trim());
+    if (!isLeaf || !isPlaceholderCaption) return;
+
+    const card = element.parentElement;
+    const valueElement = element.previousElementSibling;
+    if (!card || !valueElement) return;
+
+    const cardText = card.textContent.trim();
+    const label = STAT_LABELS.find((statLabel) => cardText.startsWith(statLabel));
+    if (label) {
+      cards[label] = { valueElement, captionElement: element };
+    }
+  });
+
+  return cards;
+}
+
+const statCards = findStatCards();
+
+function setStat(label, value, caption) {
+  const card = statCards[label];
+  if (!card) return;
+  card.valueElement.textContent = value;
+  card.captionElement.textContent = caption;
+}
+
+async function updateStats() {
+  try {
+    const [bids, contracts] = await Promise.all([
+      authFetch("/bids/mine"),
+      authFetch("/contracts/mine"),
+    ]);
+
+    const pendingBidCount = bids.filter((bid) => bid.status === "PENDING").length;
+    const heldAmount = contracts
+      .filter((contract) => contract.escrow_status === "HELD")
+      .reduce((sum, contract) => sum + Number(contract.agreed_amount || 0), 0);
+    const completedCount = contracts.filter((contract) => contract.contract_status === "COMPLETED").length;
+
+    setStat("Active Bids", pendingBidCount, "Pending bids");
+    setStat("Contracts", contracts.length, "All contracts");
+    setStat("Pending", formatCurrency(heldAmount), "Held in escrow");
+    setStat("Completed", completedCount, "Contracts finished");
+  } catch (error) {
+    STAT_LABELS.forEach((label) => setStat(label, "-", "Unavailable"));
   }
 }
 
@@ -271,96 +357,5 @@ async function toggleFraudScore(contractId) {
 loadOpenGigs();
 loadMyBids();
 loadMyContracts();
-
-
-// ---------------------------------------------------------
-// LIVE STAT CARDS (replaces the placeholder demo numbers)
-// ---------------------------------------------------------
-
-function setStatCard(label, value, caption) {
-  const labelEl = Array.from(document.querySelectorAll("body *")).find(
-    (el) => el.children.length === 0 && el.textContent.trim() === label &&
-            el.nextElementSibling && el.nextElementSibling.nextElementSibling &&
-            /demo data|unavailable|live/i.test(el.nextElementSibling.nextElementSibling.textContent)
-  );
-  if (!labelEl) return;
-  const valueEl = labelEl.nextElementSibling;
-  const captionEl = valueEl.nextElementSibling;
-  valueEl.textContent = value;
-  captionEl.textContent = caption;
-}
-
-async function updateStats() {
-  try {
-    const [bids, contracts] = await Promise.all([
-      authFetch("/bids/mine"),
-      authFetch("/contracts/mine"),
-    ]);
-
-    const activeBids = bids.filter((b) => b.status === "PENDING").length;
-    const held = contracts
-      .filter((c) => c.escrow_status === "HELD")
-      .reduce((sum, c) => sum + Number(c.agreed_amount || 0), 0);
-    const completed = contracts.filter((c) => c.contract_status === "COMPLETED").length;
-
-    setStatCard("Active Bids", activeBids, "Pending bids");
-    setStatCard("Contracts", contracts.length, "All contracts");
-    setStatCard("Pending", formatCurrency(held), "Held in escrow");
-    setStatCard("Completed", completed, "Contracts finished");
-  } catch (error) {
-    ["Active Bids", "Contracts", "Pending", "Completed"].forEach((l) =>
-      setStatCard(l, "-", "Unavailable")
-    );
-  }
-}
-
 updateStats();
-setInterval(updateStats, 15000);
-
-
-// ---------------------------------------------------------
-// LIVE STAT CARDS
-// ---------------------------------------------------------
-const STAT_LABELS = ["Active Bids", "Contracts", "Pending", "Completed"];
-
-function findStatCards() {
-  const cards = {};
-  document.querySelectorAll("body *").forEach((el) => {
-    if (el.children.length === 0 && /^(demo data|unavailable|loading)/i.test(el.textContent.trim()) || el.dataset.stat) {
-      const card = el.parentElement;
-      const valueEl = el.previousElementSibling;
-      if (!card || !valueEl) return;
-      const label = el.dataset.stat || STAT_LABELS.find((l) => card.textContent.trim().startsWith(l));
-      if (label) {
-        el.dataset.stat = label;
-        cards[label] = { valueEl, captionEl: el };
-      }
-    }
-  });
-  return cards;
-}
-
-function setStat(cards, label, value, caption) {
-  if (!cards[label]) return;
-  cards[label].valueEl.textContent = value;
-  cards[label].captionEl.textContent = caption;
-}
-
-async function updateStats() {
-  const cards = findStatCards();
-  try {
-    const [bids, contracts] = await Promise.all([authFetch("/bids/mine"), authFetch("/contracts/mine")]);
-    const held = contracts
-      .filter((c) => c.escrow_status === "HELD")
-      .reduce((sum, c) => sum + Number(c.agreed_amount || 0), 0);
-    setStat(cards, "Active Bids", bids.filter((b) => b.status === "PENDING").length, "Pending bids");
-    setStat(cards, "Contracts", contracts.length, "All contracts");
-    setStat(cards, "Pending", formatCurrency(held), "Held in escrow");
-    setStat(cards, "Completed", contracts.filter((c) => c.contract_status === "COMPLETED").length, "Contracts finished");
-  } catch (error) {
-    STAT_LABELS.forEach((l) => setStat(cards, l, "-", "Unavailable"));
-  }
-}
-
-updateStats();
-setInterval(updateStats, 15000);
+setInterval(updateStats, STATS_REFRESH_MS);
