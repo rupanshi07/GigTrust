@@ -1,4 +1,4 @@
-// Requires dashboard-common.js to already be loaded (authFetch, formatCurrency, escapeHtml).
+﻿// Requires dashboard-common.js to already be loaded (authFetch, formatCurrency, escapeHtml).
 
 const postGigForm = document.getElementById("postGigForm");
 const postGigMessage = document.getElementById("postGigMessage");
@@ -170,7 +170,7 @@ async function acceptBid(bidId, gigId) {
 }
 
 // ---------------------------------------------------------
-// MY CONTRACTS (fund escrow / approve / view fraud score)
+// MY CONTRACTS (fund escrow / view work / approve / fraud score)
 // ---------------------------------------------------------
 
 async function loadMyContracts() {
@@ -207,8 +207,10 @@ async function loadMyContracts() {
             <div>${badge(contract.contract_status)} ${badge(contract.escrow_status)}</div>
           </div>
           ${actionButton}
+          <button class="btn-small secondary work-btn" data-contract-id="${contract.contract_id}">View Delivered Work</button>
           <button class="btn-small secondary fraud-btn" data-contract-id="${contract.contract_id}">View Fraud Score</button>
           <div class="inline-error contract-error" id="contract-error-${contract.contract_id}"></div>
+          <div class="fraud-box hidden" id="work-box-${contract.contract_id}"></div>
           <div class="fraud-box hidden" id="fraud-box-${contract.contract_id}"></div>
         </div>`;
       })
@@ -219,6 +221,9 @@ async function loadMyContracts() {
     });
     document.querySelectorAll(".approve-btn").forEach((btn) => {
       btn.addEventListener("click", () => approveContract(btn.dataset.contractId));
+    });
+    document.querySelectorAll(".work-btn").forEach((btn) => {
+      btn.addEventListener("click", () => toggleDeliverable(btn.dataset.contractId));
     });
     document.querySelectorAll(".fraud-btn").forEach((btn) => {
       btn.addEventListener("click", () => toggleFraudScore(btn.dataset.contractId));
@@ -248,6 +253,84 @@ async function approveContract(contractId) {
     const result = await authFetch(`/contracts/${contractId}/approve`, { method: "POST" });
     alert(`Payment of ${formatCurrency(result.released_amount)} released to the freelancer.`);
     loadMyContracts();
+  } catch (error) {
+    errorBox.textContent = error.message;
+  }
+}
+
+// ---------------------------------------------------------
+// DELIVERED WORK (view details and download)
+// ---------------------------------------------------------
+
+function formatBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+async function toggleDeliverable(contractId) {
+  const box = document.getElementById(`work-box-${contractId}`);
+
+  if (!box.classList.contains("hidden")) {
+    box.classList.add("hidden");
+    return;
+  }
+
+  box.classList.remove("hidden");
+  box.innerHTML = "Loading...";
+
+  try {
+    const info = await authFetch(`/contracts/${contractId}/deliverable/info`);
+
+    if (!info.has_file) {
+      box.innerHTML = "<span class='muted'>No work has been uploaded yet.</span>";
+      return;
+    }
+
+    box.innerHTML = `
+      <strong>${escapeHtml(info.file_name)}</strong>
+      <div class="item-meta">${formatBytes(info.size_bytes)} &middot; uploaded ${escapeHtml(info.uploaded_at)}</div>
+      <div class="item-meta">Note: ${escapeHtml(info.note || "none")}</div>
+      <div class="item-meta" style="word-break:break-all">SHA-256: ${escapeHtml(info.sha256)}</div>
+      <button class="btn-small download-btn" data-contract-id="${contractId}" data-file-name="${escapeHtml(info.file_name)}">Download</button>
+    `;
+
+    box.querySelector(".download-btn").addEventListener("click", (e) => {
+      downloadDeliverable(e.target.dataset.contractId, info.file_name);
+    });
+  } catch (error) {
+    box.innerHTML = `<span class="inline-error">${escapeHtml(error.message)}</span>`;
+  }
+}
+
+async function downloadDeliverable(contractId, fileName) {
+  const errorBox = document.getElementById(`contract-error-${contractId}`);
+  errorBox.textContent = "";
+
+  try {
+    const base = window.GIGTRUST_CONFIG.API_BASE_URL;
+    const token = localStorage.getItem("gigtrust_token");
+    const response = await fetch(`${base}/contracts/${contractId}/deliverable`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      let detail = "Download failed.";
+      try {
+        detail = (await response.json()).detail || detail;
+      } catch (_) {}
+      throw new Error(detail);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   } catch (error) {
     errorBox.textContent = error.message;
   }
